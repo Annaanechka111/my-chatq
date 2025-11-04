@@ -7,8 +7,11 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <video id="bgVideo" autoplay loop muted playsinline>
+    <video id="bgVideo" class="bg-video active" autoplay loop muted playsinline>
       <source src="leopard.mp4" type="video/mp4">
+    </video>
+    <video id="bgVideoTyping" class="bg-video" autoplay loop muted playsinline>
+      <source src="leopard2.mp4" type="video/mp4">
     </video>
     <div class="center-box">
       <h1>Chat</h1>
@@ -47,6 +50,7 @@
       let nick = null;
       let sendMsgHandler = null;
       let inputKeyHandler = null;
+      let inputInputHandler = null;
 
       enterBtn.addEventListener("click", enterChat);
       chatBtn.addEventListener("click", openChat);
@@ -99,6 +103,9 @@
         const messagesEl = document.getElementById("messages");
         const inputEl = document.getElementById("msg");
         const sendBtn = document.getElementById("sendBtn");
+        const bgVideo = document.getElementById("bgVideo");
+        const bgVideoTyping = document.getElementById("bgVideoTyping");
+        let isTypingVideo = false;
 
         // Очистить предыдущие сообщения
         messagesEl.innerHTML = "";
@@ -168,6 +175,19 @@
         if (sendMsgHandler) {
           sendBtn.removeEventListener("click", sendMsgHandler);
           inputEl.removeEventListener("keydown", inputKeyHandler);
+          inputEl.removeEventListener("input", inputInputHandler);
+        }
+
+        function switchVideo(isTyping) {
+          if (isTyping && !isTypingVideo) {
+            bgVideo.classList.remove("active");
+            bgVideoTyping.classList.add("active");
+            isTypingVideo = true;
+          } else if (!isTyping && isTypingVideo) {
+            bgVideoTyping.classList.remove("active");
+            bgVideo.classList.add("active");
+            isTypingVideo = false;
+          }
         }
 
         function sendMsg() {
@@ -176,15 +196,21 @@
           const payload = nick + "::" + text;
           socket.send(payload);
           inputEl.value = "";
+          switchVideo(false);
         }
 
         sendMsgHandler = sendMsg;
         inputKeyHandler = (e) => {
           if (e.key === "Enter") sendMsg();
         };
+        inputInputHandler = (e) => {
+          const hasText = e.target.value.trim().length > 0;
+          switchVideo(hasText);
+        };
 
         sendBtn.addEventListener("click", sendMsgHandler);
         inputEl.addEventListener("keydown", inputKeyHandler);
+        inputEl.addEventListener("input", inputInputHandler);
       }
     </script>
   </body>
