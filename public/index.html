@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Chat — Вход</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <video id="bgVideo" autoplay loop muted playsinline>
+      <source src="leopard.mp4" type="video/mp4">
+    </video>
+    <div class="center-box">
+      <h1>Chat</h1>
+      <p>Введите никнейм, чтобы войти в чат</p>
+      <input id="nickname" placeholder="Ваш ник" maxlength="20" />
+      <button id="enterBtn">Войти</button>
+      <button id="chatBtn" class="chat-btn">Chat</button>
+      <p class="small">
+        Открой два окна/вкладки для теста — сообщения будут приходить в оба.
+      </p>
+    </div>
+
+    <div id="chatContainer" class="chat-container" style="display: none;">
+      <header class="chat-header">
+        <div class="title">Chat</div>
+        <div id="userInfo" class="user-info"></div>
+        <button id="closeChatBtn" class="close-chat-btn">✕</button>
+      </header>
+
+      <div id="messages" class="messages" aria-live="polite"></div>
+
+      <div class="input-area">
+        <input id="msg" placeholder="Напишите сообщение..." maxlength="500" />
+        <button id="sendBtn" title="Отправить">➤</button>
+      </div>
+    </div>
+
+    <script>
+      const input = document.getElementById("nickname");
+      const enterBtn = document.getElementById("enterBtn");
+      const chatBtn = document.getElementById("chatBtn");
+      const chatContainer = document.getElementById("chatContainer");
+      const closeChatBtn = document.getElementById("closeChatBtn");
+      
+      let socket = null;
+      let nick = null;
+      let sendMsgHandler = null;
+      let inputKeyHandler = null;
+
+      enterBtn.addEventListener("click", enterChat);
+      chatBtn.addEventListener("click", openChat);
+      closeChatBtn.addEventListener("click", closeChat);
+      
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") enterChat();
+      });
+
+      function enterChat() {
+        const nickname = input.value.trim();
+        if (!nickname) {
+          alert("Введите ник");
+          return;
+        }
+        localStorage.setItem("nickname", nickname);
+        window.location.href = "chat.html";
+      }
+
+      function openChat() {
+        nick = localStorage.getItem("nickname") || input.value.trim();
+        if (!nick) {
+          alert("Введите ник сначала");
+          return;
+        }
+        localStorage.setItem("nickname", nick);
+        
+        chatContainer.style.display = "flex";
+        document.getElementById("userInfo").textContent = "Вы: " + nick;
+        
+        initChat();
+      }
+
+      function closeChat() {
+        chatContainer.style.display = "none";
+        if (socket) {
+          socket.close();
+          socket = null;
+        }
+      }
+
+      function initChat() {
+        if (socket) {
+          socket.close();
+        }
+
+        const protocol = location.protocol === "https:" ? "wss" : "ws";
+        socket = new WebSocket(protocol + "://" + location.host);
+
+        const messagesEl = document.getElementById("messages");
+        const inputEl = document.getElementById("msg");
+        const sendBtn = document.getElementById("sendBtn");
+
+        // Очистить предыдущие сообщения
+        messagesEl.innerHTML = "";
+
+        function appendMessage(sender, text, isMe) {
+          const el = document.createElement("div");
+          el.className = "msg " + (isMe ? "me" : "other");
+
+          const name = document.createElement("div");
+          name.className = "msg-name";
+          name.textContent = sender;
+
+          const body = document.createElement("div");
+          body.className = "msg-body";
+          body.textContent = text;
+
+          el.appendChild(name);
+          el.appendChild(body);
+          messagesEl.appendChild(el);
+
+          messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        socket.addEventListener("open", () => {
+          console.log("Connected to server");
+          appendMessage(
+            "Система",
+            "Пишите сообщение и нажимайте Enter или кнопку.",
+            false
+          );
+        });
+
+        socket.addEventListener("message", (ev) => {
+          let data;
+          try {
+            data = JSON.parse(ev.data);
+          } catch (e) {
+            return;
+          }
+
+          // История от сервера
+          if (data.type === "history") {
+            data.messages.forEach((m) => {
+              appendMessage(m.sender, m.msg, m.sender === nick);
+            });
+            return;
+          }
+
+          // Новое сообщение
+          if (data.type === "message") {
+            appendMessage(
+              data.message.sender,
+              data.message.msg,
+              data.message.sender === nick
+            );
+          }
+        });
+
+        socket.addEventListener("close", () => {
+          const notice = document.createElement("div");
+          notice.className = "notice";
+          notice.textContent = "Отключено от сервера.";
+          messagesEl.appendChild(notice);
+        });
+
+        // Удаляем старые обработчики если они есть
+        if (sendMsgHandler) {
+          sendBtn.removeEventListener("click", sendMsgHandler);
+          inputEl.removeEventListener("keydown", inputKeyHandler);
+        }
+
+        function sendMsg() {
+          const text = inputEl.value.trim();
+          if (!text) return;
+          const payload = nick + "::" + text;
+          socket.send(payload);
+          inputEl.value = "";
+        }
+
+        sendMsgHandler = sendMsg;
+        inputKeyHandler = (e) => {
+          if (e.key === "Enter") sendMsg();
+        };
+
+        sendBtn.addEventListener("click", sendMsgHandler);
+        inputEl.addEventListener("keydown", inputKeyHandler);
+      }
+    </script>
+  </body>
+</html>
